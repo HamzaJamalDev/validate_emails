@@ -93,6 +93,10 @@ Logs are saved to `process_log.log` and include timestamps, log levels, and mess
   - Stores the results of email and website validations.
 
 ## Useful Server Commands
+-
+```sh
+nohup python3 validate_email.py > output.log &
+```
 
 - Count the number of failed SMTP connections (response code 550) in the log file:
 ```sh
@@ -104,7 +108,7 @@ grep -o 'code: 550' process_log.log | wc -l
 grep 'Processed' process_log.log | tail -n 1
 ```
 
-- Check the status of the current process (replace `53653` with the actual process ID):
+- Check the status of the current process (replace `395682` with the actual process ID):
 ```sh
-ps -p 53653
+ps -p 395682
 ```

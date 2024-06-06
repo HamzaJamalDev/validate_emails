@@ -7,6 +7,7 @@ import csv
 import time
 import random
 import logging
+import os
 
 # Set up logging
 logging.basicConfig(filename='process_log.log', level=logging.INFO,
@@ -127,16 +128,34 @@ def print_progress_bar(iteration, total, prefix='', suffix='', decimals=1, lengt
 def save_intermediate_results(results, output_file):
     with open(output_file, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
+
         writer.writerow(['name', 'original_website', 'base_website', 'main_category', 'categories',
-                        'rating', 'phone', 'address', 'link', 'email', 'status'])
+                             'rating', 'phone', 'address', 'link', 'email', 'status'])
+
         writer.writerows(results)
     logging.info(f"Intermediate results saved to {output_file}")
 
 
-def process_websites(input_file, output_file, email_send):
+def process_websites(input_file, output_file, email_send, quota):
     results = []
     websites = set()
+    full_url_websites = set()
+    verified_emails_count = 0
     batch_size = 10  # Save results after processing each batch of 10 websites
+
+    # Get previous valid emails' websites
+    if os.path.isfile(output_file):
+        with open(output_file, 'r', newline='') as csvfile:
+            reader = csv.reader(csvfile)
+
+            # Skip header row
+            next(reader)
+
+            for row in reader:
+                websites.add(row[2])  # base_website
+                full_url_websites.add(row[1])  # original_website
+                results.append(row[:11])
+        save_intermediate_results(results, output_file)
 
     with open(input_file, mode='r') as file:
         reader = csv.reader(file)
@@ -156,13 +175,21 @@ def process_websites(input_file, output_file, email_send):
                 address = row.get('address')
                 link = row.get('link')
 
+                if website in full_url_websites:
+                    logging.info(f"Ignore full website link: {website}")
+                    continue
+
+                full_url_websites.add(website)
+
                 website_base_url = is_valid_website(website)
                 if website_base_url:
                     if website_base_url in websites:
+                        logging.info(f"Ignore website link: {website}")
                         continue
                     websites.add(website_base_url)
                     roles = ['info', 'contact']
                     for role in roles:
+                        verified_emails_count += 1
                         email_receive = f"{role}@{website_base_url}"
                         status = is_valid_email(email_receive, email_send)
                         results.append([name, website, website_base_url, main_category, categories,
@@ -174,16 +201,20 @@ def process_websites(input_file, output_file, email_send):
                             # Introduce a random delay between 1 and 10.0 seconds
                             delay = random.uniform(1.0, 10.0)
                             time.sleep(delay)
-                # Introduce a random delay between 1 and 5.0 seconds
-                delay = random.uniform(1.0, 5.0)
-                time.sleep(delay)
 
-                print_progress_bar(i, total_rows, prefix='Progress',
-                                   suffix='Complete', length=50)
-                logging.info(f"Processed {i}/{total_rows}")
+                    if quota and verified_emails_count >= quota:
+                        break
 
-                if i % batch_size == 0:
-                    save_intermediate_results(results, output_file)
+                    # Introduce a random delay between 1 and 5.0 seconds
+                    delay = random.uniform(1.0, 5.0)
+                    time.sleep(delay)
+
+                    print_progress_bar(i, total_rows, prefix='Progress',
+                                    suffix='Complete', length=50)
+                    logging.info(f"Processed {i}/{total_rows}")
+
+                    if i % batch_size == 0:
+                        save_intermediate_results(results, output_file)
 
             except Exception as e:
                 logging.error(f"Error processing row {i}: {e}")
@@ -196,5 +227,6 @@ def process_websites(input_file, output_file, email_send):
 if __name__ == "__main__":
     input_csv = 'all_results.csv'
     output_csv = 'emails.csv'
+    quota = 500 # None or number
     email_send = 'your_email@example.com'
-    process_websites(input_csv, output_csv, email_send)
+    process_websites(input_csv, output_csv, email_send, quota)
